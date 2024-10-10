@@ -93,6 +93,7 @@ Player *Game::spawn_player() {
 	player.color = glm::normalize(player.color);
 
 	player.name = "Player " + std::to_string(next_player_number++);
+	player.score = 0;
 
 	return &player;
 }
@@ -205,6 +206,7 @@ void Game::send_state_message(Connection *connection_, Player *connection_player
 		connection.send(player.position);
 		connection.send(player.velocity);
 		connection.send(player.color);
+		connection.send(player.score);
 	
 		//NOTE: can't just 'send(name)' because player.name is not plain-old-data type.
 		//effectively: truncates player name to 255 chars
@@ -260,6 +262,7 @@ bool Game::recv_state_message(Connection *connection_) {
 		read(&player.position);
 		read(&player.velocity);
 		read(&player.color);
+		read(&player.score);
 		uint8_t name_len;
 		read(&name_len);
 		//n.b. would probably be more efficient to directly copy from recv_buffer, but I think this is clearer:

@@ -1,6 +1,7 @@
 #include "PlayMode.hpp"
 
 #include "DrawLines.hpp"
+#include "Load.hpp"
 #include "gl_errors.hpp"
 #include "data_path.hpp"
 #include "hex_dump.hpp"
@@ -11,8 +12,17 @@
 #include <random>
 #include <array>
 
+Load< Sound::Sample > main_menu(LoadTagDefault, []() -> Sound::Sample const * {
+	return new Sound::Sample(data_path("main_menu.wav"));
+});
+
+Load< Sound::Sample > scary(LoadTagDefault, []() -> Sound::Sample const * {
+	return new Sound::Sample(data_path("spooky.wav"));
+});
+
 PlayMode::PlayMode(Client &client_) : client(client_) {
-}
+	music_loop = Sound::loop(*main_menu, 0.5f, 0.0f);
+};
 
 PlayMode::~PlayMode() {
 }
@@ -99,6 +109,29 @@ void PlayMode::update(float elapsed) {
 			}
 		}
 	}, 0.0);
+
+	auto distance = [&](glm::vec2 a, glm::vec2 b) {
+		return sqrt((a.x - b.x)*(a.x - b.x) + (a.y - b.y)*(a.y - b.y));
+	};
+
+	{
+		for (auto &player : game.players)
+		{
+			if (Game::PlayerRadius + (plantHealth * plantSize) >= distance(player.position, plantPos))
+			{
+				plantHealth--;
+				if (plantHealth <= 0)
+				{
+					plantHealth = 5;
+					player.score += 1;
+					float soundLocation = 2.0f * (plantPos.x / (Game::ArenaMax.x - Game::ArenaMin.x)) - 1.0f;
+					Sound::play(*scary, 1.0f, soundLocation);
+				}
+				plantPos.x = glm::linearRand(Game::ArenaMin.x + (plantHealth * plantSize), Game::ArenaMax.x - (plantHealth * plantSize));
+				plantPos.y = glm::linearRand(Game::ArenaMin.x + (plantHealth * plantSize), Game::ArenaMax.x - (plantHealth * plantSize));
+			}
+		}
+	}
 }
 
 void PlayMode::draw(glm::uvec2 const &drawable_size) {
@@ -112,7 +145,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 		return ret;
 	}();
 
-	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glDisable(GL_DEPTH_TEST);
 	
@@ -175,8 +208,20 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 				);
 			}
 
-			draw_text(player.position + glm::vec2(0.0f, -0.1f + Game::PlayerRadius), player.name, 0.09f);
+			std::string playerText = player.name + " [" + std::to_string(player.score) + "]";
+			draw_text(player.position + glm::vec2(0.0f, -0.1f + Game::PlayerRadius), playerText, 0.09f);
 		}
+
+		glm::u8vec4 plantCol = glm::u8vec4(plantColor.x*255, plantColor.y*255, plantColor.z*255, 0xff);
+		float plantRadius = plantHealth * plantSize;
+		for (uint32_t a = 0; a < circle.size(); ++a) {
+			lines.draw(
+				glm::vec3(plantPos + plantRadius * circle[a], 0.0f),
+				glm::vec3(plantPos + plantRadius * circle[(a+1)%circle.size()], 0.0f),
+				plantCol
+			);
+		}
+		draw_text(plantPos, plantName, 0.05f);
 	}
 	GL_ERRORS();
 }
